@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Finanzas Cafetería - Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body { padding: 18px; }
+    .monospace { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; }
+    .table-fixed { max-height: 300px; overflow: auto; }
+    input::placeholder { color: #999; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="mb-3">Finanzas Cafetería — Registro & Dashboard</h1>
+
+    <div class="row mb-3">
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Añadir registro diario</h5>
+            <form id="formAdd" class="row g-2 align-items-end">
+              <div class="col-auto">
+                <label class="form-label small">Fecha</label>
+                <input id="fFecha" type="datetime-local" class="form-control" required>
+              </div>
+              <div class="col-auto">
+                <label class="form-label small">Ingresos Efectivo (€)</label>
+                <input id="fEfectivo" type="number" step="0.01" class="form-control" placeholder="Ingresa efectivo...">
+              </div>
+              <div class="col-auto">
+                <label class="form-label small">Ingresos Tarjeta (€)</label>
+                <input id="fTarjeta" type="number" step="0.01" class="form-control" placeholder="Ingresa tarjeta...">
+              </div>
+              <div class="col-auto">
+                <label class="form-label small">Ingresos Mañana (€)</label>
+                <input id="fManana" type="number" step="0.01" class="form-control" placeholder="Ingresa mañana...">
+              </div>
+              <div class="col-auto">
+                <label class="form-label small">Gasto (€)</label>
+                <input id="fGasto" type="number" step="0.01" class="form-control" placeholder="Ingresa gasto...">
+              </div>
+              <div class="col-auto">
+                <button class="btn btn-primary" id="btnAdd" type="submit">Añadir</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card mt-3">
+          <div class="card-body">
+            <h5 class="card-title">Registro (puedes añadir varias filas con la misma fecha)</h5>
+            <div class="table-responsive table-fixed">
+              <table class="table table-sm table-striped" id="tblRegistro">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Efectivo (€)</th>
+                    <th>Tarjeta (€)</th>
+                    <th>Mañana (€)</th>
+                    <th>Tarde (€)</th>
+                    <th>Gasto (€)</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card mb-3">
+          <div class="card-body">
+            <h6>Filtro de fechas (segmentador)</h6>
+            <label class="form-label small">Desde</label>
+            <input id="filterFrom" type="date" class="form-control mb-2">
+            <label class="form-label small">Hasta</label>
+            <input id="filterTo" type="date" class="form-control mb-2">
+            <button class="btn btn-primary btn-sm" id="btnApplyFilter">Aplicar filtro</button>
+            <button class="btn btn-outline-secondary btn-sm" id="btnResetFilter">Reset</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body">
+            <h6>Resumen rápido</h6>
+            <div id="quickSummary" class="small"></div>
+            <hr>
+            <div class="small">
+              <strong>Total Efectivo:</strong> <span id="sumEfectivo">0.00</span> €<br>
+              <strong>Total Tarjeta:</strong> <span id="sumTarjeta">0.00</span> €<br>
+              <strong>Total Gastos:</strong> <span id="sumGastos">0.00</span> €<br>
+              <strong>Balance Total:</strong> <span id="balanceTotal">0.00</span> €
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-md-12">
+        <div class="card">
+          <div class="card-body">
+            <h5>Resumen automático por fecha (tabla)</h5>
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered" id="tblResumen">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Ingresos Efectivo (€)</th>
+                    <th>Ingresos Tarjeta (€)</th>
+                    <th>Ingresos Mañana (€)</th>
+                    <th>Ingresos Tarde (€)</th>
+                    <th>Ingresos Totales (€)</th>
+                    <th>Gastos Totales (€)</th>
+                    <th>Total del Día (€)</th>
+                    <th>Balance Real (€)</th>
+                    <th>Semana</th>
+                    <th>Mes</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <hr>
+            <h5>Gráficas</h5>
+            <div class="row">
+              <div class="col-md-6 mb-3"><canvas id="chartDays"></canvas></div>
+              <div class="col-md-6 mb-3"><canvas id="chartTurnos"></canvas></div>
+              <div class="col-md-12"><canvas id="chartLine"></canvas></div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="mt-3 small text-muted">Los registros se guardan automáticamente en Firebase y las gráficas se actualizan en vivo.</footer>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+    apiKey: "AIzaSyAbioyp9ZjGQmIx_fHR9VAWSPv2qhDndGA",
+    authDomain: "cafeteria-portugal.firebaseapp.com",
+    projectId: "cafeteria-portugal",
+    storageBucket: "cafeteria-portugal.firebasestorage.app",
+    messagingSenderId: "879383772017",
+    appId: "1:879383772017:web:ccccda22bd00c2cc6c14d0"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const colRef = collection(db, "registros");
+
+    let registros = [];
+
+    const tbodyReg = document.querySelector('#tblRegistro tbody');
+    const tbodyRes = document.querySelector('#tblResumen tbody');
+    const fFecha = document.getElementById('fFecha');
+    const fEf = document.getElementById('fEfectivo');
+    const fTar = document.getElementById('fTarjeta');
+    const fMan = document.getElementById('fManana');
+    const fGas = document.getElementById('fGasto');
+
+    const filterFrom = document.getElementById('filterFrom');
+    const filterTo = document.getElementById('filterTo');
+
+    const sumEfectivoEl = document.getElementById('sumEfectivo');
+    const sumTarjetaEl = document.getElementById('sumTarjeta');
+    const sumGastosEl = document.getElementById('sumGastos');
+    const balanceTotalEl = document.getElementById('balanceTotal');
+
+    let chartDays, chartTurnos, chartLine;
+
+    function fmt(n){ return Number(n||0).toFixed(2); }
+
+    function getWeekNumber(d){
+      const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dayNum = date.getUTCDay() || 7;
+      date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(date.getUTCFullYear(),0,1));
+      return Math.ceil((((date - yearStart) / 86400000) + 1)/7);
+    }
+
+    document.getElementById('formAdd').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const totalEf = parseFloat(fEf.value)||0;
+      const totalTar = parseFloat(fTar.value)||0;
+      const totalIngresos = totalEf + totalTar;
+      const man = parseFloat(fMan.value)||0;
+      const tarde = totalIngresos - man;
+      const rec = {
+        fecha: fFecha.value || new Date().toISOString(),
+        efectivo: totalEf,
+        tarjeta: totalTar,
+        manana: man,
+        tarde: tarde,
+        gasto: parseFloat(fGas.value)||0
+      };
+      await addDoc(colRef, rec);
+      e.target.reset();
+    });
+
+    onSnapshot(colRef, (snapshot)=>{
+      registros = snapshot.docs.map(doc=> ({id: doc.id, ...doc.data()}));
+      renderAll();
+    });
+
+    function deleteRegistro(id){
+      deleteDoc(doc(db, "registros", id));
+    }
+
+    function renderRegistro(filtered){
+      const data = filtered || registros;
+      tbodyReg.innerHTML = '';
+      data.forEach((r)=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.fecha}</td><td class="text-end">${fmt(r.efectivo)}</td><td class="text-end">${fmt(r.tarjeta)}</td><td class="text-end">${fmt(r.manana)}</td><td class="text-end">${fmt(r.tarde)}</td><td class="text-end">${fmt(r.gasto)}</td><td class="text-center"><button class='btn btn-xs btn-outline-danger btn-sm' data-id='${r.id}'>X</button></td>`;
+        tbodyReg.appendChild(tr);
+      });
+      tbodyReg.querySelectorAll('button[data-id]').forEach(btn=>{
+        btn.addEventListener('click', ()=> deleteRegistro(btn.getAttribute('data-id')));
+      });
+    }
+
+    function buildResumen(filtered){
+      const map = new Map();
+      (filtered || registros).forEach(r=>{
+        const d = new Date(r.fecha);
+        if(!map.has(r.fecha)) map.set(r.fecha, {ef:0,tar:0,g:0,man:0,tarDe:0});
+        const it = map.get(r.fecha);
+        it.ef += Number(r.efectivo||0);
+        it.tar += Number(r.tarjeta||0);
+        it.man += Number(r.manana||0);
+        it.tarDe += Number(r.tarde||0);
+        it.g += Number(r.gasto||0);
+      });
+      const rows = Array.from(map.entries()).map(([fecha,vals])=>{
+        const ingresos = vals.ef + vals.tar;
+        return {
+          fecha, efectivo: vals.ef, tarjeta: vals.tar, manana: vals.man, tarde: vals.tarDe, ingresos, gastos: vals.g, totalDia: ingresos + vals.g, balance: ingresos - vals.g,
+          semana: (new Date(fecha)).getFullYear() + '-W' + String(getWeekNumber(new Date(fecha))).padStart(2,'0'),
+          mes: (new Date(fecha)).toISOString().slice(0,7)
+        };
+      }).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+      return rows;
+    }
+
+    function renderResumen(rows){
+      tbodyRes.innerHTML = '';
+      let totalEf=0,totalTar=0,totalG=0;
+      rows.forEach(r=>{
+        totalEf += r.efectivo; totalTar += r.tarjeta; totalG += r.gastos;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.fecha}</td><td class='text-end'>${fmt(r.efectivo)} €</td><td class='text-end'>${fmt(r.tarjeta)} €</td><td class='text-end'>${fmt(r.manana)} €</td><td class='text-end'>${fmt(r.tarde)} €</td><td class='text-end'>${fmt(r.ingresos)} €</td><td class='text-end'>${fmt(r.gastos)} €</td><td class='text-end'>${fmt(r.totalDia)} €</td><td class='text-end'>${fmt(r.balance)} €</td><td class='text-center'>${r.semana}</td><td class='text-center'>${r.mes}</td>`;
+        tbodyRes.appendChild(tr);
+      });
+      sumEfectivoEl.textContent = fmt(totalEf);
+      sumTarjetaEl.textContent = fmt(totalTar);
+      sumGastosEl.textContent = fmt(totalG);
+      balanceTotalEl.textContent = fmt(totalEf + totalTar - totalG);
+    }
+
+    function updateCharts(rows){
+      // Ventas por día de la semana
+      const daysMap = new Map();
+      registros.forEach(r=>{
+        const d = new Date(r.fecha);
+        const day = d.toLocaleDateString('es-ES',{weekday:'long'});
+        const total = (r.efectivo||0)+(r.tarjeta||0);
+        daysMap.set(day, (daysMap.get(day)||0) + total);
+      });
+      const daysLabels = Array.from(daysMap.keys());
+      const daysData = daysLabels.map(d=>daysMap.get(d));
+      if(chartDays) chartDays.destroy();
+      chartDays = new Chart(document.getElementById('chartDays').getContext('2d'), { type:'bar', data:{ labels:daysLabels, datasets:[{ label:'Ventas por día de la semana (€)', data:daysData }] }});
+
+      // Ventas por turno
+      const turnosMap = {"Mañana":0, "Tarde":0};
+      registros.forEach(r=>{
+        turnosMap["Mañana"] += (r.manana||0);
+        turnosMap["Tarde"] += (r.tarde||0);
+      });
+      if(chartTurnos) chartTurnos.destroy();
+      chartTurnos = new Chart(document.getElementById('chartTurnos').getContext('2d'), { type:'bar', data:{ labels:Object.keys(turnosMap), datasets:[{ label:'Ventas por turno (€)', data:Object.values(turnosMap) }] }});
+
+      // Balance acumulado
+      const balances = [];
+      let cum = 0;
+      rows.forEach(r=>{ cum += r.balance; balances.push(cum); });
+      if(chartLine) chartLine.destroy();
+      chartLine = new Chart(document.getElementById('chartLine').getContext('2d'), { type:'line', data:{ labels:rows.map(r=>r.fecha), datasets:[{ label:'Balance acumulado (€)', data:balances, fill:false, tension:0.2 }] }});
+    }
+
+    function getFiltered(){
+      const from = filterFrom.value? new Date(filterFrom.value) : null;
+      const to = filterTo.value? new Date(filterTo.value) : null;
+      return registros.filter(r=>{
+        const d = new Date(r.fecha);
+        if(from && d < from) return false;
+        if(to && d > to) return false;
+        return true;
+      });
+    }
+
+    function renderAll(){
+      const filtered = getFiltered();
+      renderRegistro(filtered);
+      const resumen = buildResumen(filtered);
+      renderResumen(resumen);
+      updateCharts(resumen);
+    }
+
+    document.getElementById('btnApplyFilter').addEventListener('click', ()=> renderAll());
+    document.getElementById('btnResetFilter').addEventListener('click', ()=>{ filterFrom.value=''; filterTo.value=''; renderAll(); });
+
+  </script>
+</body>
+</html>
