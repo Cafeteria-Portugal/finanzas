@@ -11,6 +11,7 @@
     .monospace { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; }
     .table-fixed { max-height: 300px; overflow: auto; }
     input::placeholder { color: #999; font-size: 0.9em; }
+    .small-muted { font-size: 0.85rem; color: #6c757d; }
   </style>
 </head>
 <body>
@@ -91,13 +92,13 @@
             <h6>Resumen rápido</h6>
             <div id="quickSummary" class="small"></div>
             <hr>
-            <div class="small">
-              <strong>Total Efectivo:</strong> <span id="sumEfectivo">0.00</span> €<br>
-              <strong>Total Tarjeta:</strong> <span id="sumTarjeta">0.00</span> €<br>
-              <strong>Total Gastos:</strong> <span id="sumGastos">0.00</span> €<br>
-              <strong>Balance Total:</strong> <span id="balanceTotal">0.00</span> €
+            <div class="d-flex justify-content-around mb-3">
+                <div>Efectivo total: <span id="sumEfectivo">0</span> €</div>
+                <div>Tarjeta total: <span id="sumTarjeta">0</span> €</div>
+                <div>Gastos totales: <span id="sumGastos">0</span> €</div>
+                <div>Total bruto: <span id="sumBruto">0</span> €</div>   <!-- ✅ nuevo -->
+                <div>Balance total: <span id="balanceTotal">0</span> €</div>
             </div>
-          </div>
         </div>
       </div>
     </div>
@@ -141,7 +142,7 @@
       </div>
     </div>
 
-    <footer class="mt-3 small text-muted">Los registros se guardan automáticamente en Firebase y las gráficas se actualizan en vivo.</footer>
+    <footer class="mt-3 small-muted">Los registros se guardan automáticamente en Firebase y las gráficas se actualizan en vivo.</footer>
 
   </div>
 
@@ -150,13 +151,14 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
     import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
+    // --- CONFIG FIREBASE (mantén estas claves en env .env si vas a producción) ---
     const firebaseConfig = {
-    apiKey: "AIzaSyAbioyp9ZjGQmIx_fHR9VAWSPv2qhDndGA",
-    authDomain: "cafeteria-portugal.firebaseapp.com",
-    projectId: "cafeteria-portugal",
-    storageBucket: "cafeteria-portugal.firebasestorage.app",
-    messagingSenderId: "879383772017",
-    appId: "1:879383772017:web:ccccda22bd00c2cc6c14d0"
+      apiKey: "AIzaSyAbioyp9ZjGQmIx_fHR9VAWSPv2qhDndGA",
+      authDomain: "cafeteria-portugal.firebaseapp.com",
+      projectId: "cafeteria-portugal",
+      storageBucket: "cafeteria-portugal.firebasestorage.app",
+      messagingSenderId: "879383772017",
+      appId: "1:879383772017:web:ccccda22bd00c2cc6c14d0"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -185,6 +187,7 @@
 
     function fmt(n){ return Number(n||0).toFixed(2); }
 
+    // ISO -> week number (ISO week)
     function getWeekNumber(d){
       const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
       const dayNum = date.getUTCDay() || 7;
@@ -193,27 +196,42 @@
       return Math.ceil((((date - yearStart) / 86400000) + 1)/7);
     }
 
+    // --- Submit: guardar registro con las fórmulas correctas ---
     document.getElementById('formAdd').addEventListener('submit', async (e)=>{
       e.preventDefault();
-      const totalEf = parseFloat(fEf.value)||0;
-      const totalTar = parseFloat(fTar.value)||0;
-      const totalIngresos = totalEf + totalTar;
-      const man = parseFloat(fMan.value)||0;
-      const tarde = totalIngresos - man;
+      const efectivo = parseFloat(fEf.value) || 0;
+      const tarjeta = parseFloat(fTar.value) || 0;
+      const gasto = parseFloat(fGas.value) || 0;
+      const manana = parseFloat(fMan.value) || 0;
+
+      const ingresos = efectivo + tarjeta;               // efectivo + tarjeta
+      const totalDia = ingresos + gasto;                // efectivo + tarjeta + gasto
+      const tarde = totalDia - manana;                  // total del día - mañana
+      const balance = ingresos - gasto;                 // dinero real
+
+      // guardamos la fecha en ISO para evitar ambigüedades
+      const fechaIso = fFecha.value ? new Date(fFecha.value).toISOString() : new Date().toISOString();
+
       const rec = {
-        fecha: fFecha.value || new Date().toISOString(),
-        efectivo: totalEf,
-        tarjeta: totalTar,
-        manana: man,
-        tarde: tarde,
-        gasto: parseFloat(fGas.value)||0
+        fecha: fechaIso,
+        efectivo,
+        tarjeta,
+        manana,
+        tarde,
+        gasto,
+        totalDia,
+        balance
       };
+
       await addDoc(colRef, rec);
       e.target.reset();
+      // opcional: dejar la fecha con el día actual para agilizar varios registros seguidos
+      fFecha.value = new Date().toISOString().slice(0,16);
     });
 
+    // --- Escucha en tiempo real ---
     onSnapshot(colRef, (snapshot)=>{
-      registros = snapshot.docs.map(doc=> ({id: doc.id, ...doc.data()}));
+      registros = snapshot.docs.map(d=> ({ id: d.id, ...d.data() }));
       renderAll();
     });
 
@@ -221,12 +239,17 @@
       deleteDoc(doc(db, "registros", id));
     }
 
+    // --- render de registros: mostramos tabla con hora y calculamos tarde a partir de la fórmula correcta ---
     function renderRegistro(filtered){
       const data = filtered || registros;
       tbodyReg.innerHTML = '';
       data.forEach((r)=>{
+        const dt = new Date(r.fecha);
+        const fechaStr = dt.toLocaleString('es-ES', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+        // recalculamos tarde para asegurar consistencia: (efectivo+tarjeta+gasto) - manana
+        const tardeCalc = ((r.efectivo||0) + (r.tarjeta||0) + (r.gasto||0)) - (r.manana||0);
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${r.fecha}</td><td class="text-end">${fmt(r.efectivo)}</td><td class="text-end">${fmt(r.tarjeta)}</td><td class="text-end">${fmt(r.manana)}</td><td class="text-end">${fmt(r.tarde)}</td><td class="text-end">${fmt(r.gasto)}</td><td class="text-center"><button class='btn btn-xs btn-outline-danger btn-sm' data-id='${r.id}'>X</button></td>`;
+        tr.innerHTML = `<td>${fechaStr}</td><td class="text-end">${fmt(r.efectivo)}</td><td class="text-end">${fmt(r.tarjeta)}</td><td class="text-end">${fmt(r.manana)}</td><td class="text-end">${fmt(tardeCalc)}</td><td class="text-end">${fmt(r.gasto)}</td><td class="text-center"><button class='btn btn-xs btn-outline-danger btn-sm' data-id='${r.id}'>X</button></td>`;
         tbodyReg.appendChild(tr);
       });
       tbodyReg.querySelectorAll('button[data-id]').forEach(btn=>{
@@ -234,32 +257,47 @@
       });
     }
 
+    // --- buildResumen: agregación por día (YYYY-MM-DD) y cálculos correctos ---
     function buildResumen(filtered){
       const map = new Map();
       (filtered || registros).forEach(r=>{
-        const d = new Date(r.fecha);
-        if(!map.has(r.fecha)) map.set(r.fecha, {ef:0,tar:0,g:0,man:0,tarDe:0});
-        const it = map.get(r.fecha);
+        // agrupamos por día (ignoramos la hora) para sumar todos los registros del mismo día
+        const dayKey = new Date(r.fecha).toISOString().slice(0,10); // YYYY-MM-DD
+        if(!map.has(dayKey)) map.set(dayKey, { ef:0, tar:0, man:0, g:0 });
+        const it = map.get(dayKey);
         it.ef += Number(r.efectivo||0);
         it.tar += Number(r.tarjeta||0);
         it.man += Number(r.manana||0);
-        it.tarDe += Number(r.tarde||0);
         it.g += Number(r.gasto||0);
       });
-      const rows = Array.from(map.entries()).map(([fecha,vals])=>{
-        const ingresos = vals.ef + vals.tar;
+
+      const rows = Array.from(map.entries()).map(([day, vals])=>{
+        const ingresos = vals.ef + vals.tar;           // efectivo + tarjeta
+        const totalDia = ingresos + vals.g;            // efectivo + tarjeta + gasto
+        const tarde = totalDia - vals.man;             // total del día - mañana
+        const balance = ingresos - vals.g;             // efectivo + tarjeta - gasto
+        const fechaObj = new Date(day + 'T00:00:00');
         return {
-          fecha, efectivo: vals.ef, tarjeta: vals.tar, manana: vals.man, tarde: vals.tarDe, ingresos, gastos: vals.g, totalDia: ingresos + vals.g, balance: ingresos - vals.g,
-          semana: (new Date(fecha)).getFullYear() + '-W' + String(getWeekNumber(new Date(fecha))).padStart(2,'0'),
-          mes: (new Date(fecha)).toISOString().slice(0,7)
+          fecha: day, // mostramos YYYY-MM-DD
+          efectivo: vals.ef,
+          tarjeta: vals.tar,
+          manana: vals.man,
+          tarde,
+          ingresos,
+          gastos: vals.g,
+          totalDia,
+          balance,
+          semana: fechaObj.getFullYear() + '-W' + String(getWeekNumber(fechaObj)).padStart(2,'0'),
+          mes: day.slice(0,7)
         };
       }).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+
       return rows;
     }
 
     function renderResumen(rows){
       tbodyRes.innerHTML = '';
-      let totalEf=0,totalTar=0,totalG=0;
+      let totalEf=0, totalTar=0, totalG=0;
       rows.forEach(r=>{
         totalEf += r.efectivo; totalTar += r.tarjeta; totalG += r.gastos;
         const tr = document.createElement('tr');
@@ -270,42 +308,65 @@
       sumTarjetaEl.textContent = fmt(totalTar);
       sumGastosEl.textContent = fmt(totalG);
       balanceTotalEl.textContent = fmt(totalEf + totalTar - totalG);
+
+      const totalBruto = totalEf + totalTar + totalG;   // ✅ nuevo cálculo
+      document.getElementById('sumBruto').textContent = fmt(totalBruto);
+
+      balanceTotalEl.textContent = fmt(totalEf + totalTar - totalG);
+
+
+      // quick summary
+      const txt = `Registros: ${rows.length} • Período: ${rows.length? rows[0].fecha + ' — ' + rows[rows.length-1].fecha : '—'}`;
+      document.getElementById('quickSummary').textContent = txt;
     }
 
+    // --- gráficas: usamos las filas agregadas (rows) ---
     function updateCharts(rows){
-      // Ventas por día de la semana
-      const daysMap = new Map();
-      registros.forEach(r=>{
-        const d = new Date(r.fecha);
-        const day = d.toLocaleDateString('es-ES',{weekday:'long'});
-        const total = (r.efectivo||0)+(r.tarjeta||0);
-        daysMap.set(day, (daysMap.get(day)||0) + total);
+      // Ventas por día de la semana (ordenado lunes..domingo)
+      const weekDays = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'];
+      const daysMap = new Map(weekDays.map(d=>[d,0]));
+      rows.forEach(r=>{
+        const d = new Date(r.fecha + 'T00:00:00');
+        const dayName = d.toLocaleDateString('es-ES',{ weekday: 'long' });
+        daysMap.set(dayName, (daysMap.get(dayName)||0) + (r.ingresos||0));
       });
       const daysLabels = Array.from(daysMap.keys());
-      const daysData = daysLabels.map(d=>daysMap.get(d));
+      const daysData = daysLabels.map(l=>daysMap.get(l));
       if(chartDays) chartDays.destroy();
-      chartDays = new Chart(document.getElementById('chartDays').getContext('2d'), { type:'bar', data:{ labels:daysLabels, datasets:[{ label:'Ventas por día de la semana (€)', data:daysData }] }});
+      chartDays = new Chart(document.getElementById('chartDays').getContext('2d'), {
+        type: 'bar',
+        data: { labels: daysLabels, datasets: [{ label: 'Ventas (€)', data: daysData }] },
+        options: { responsive:true }
+      });
 
       // Ventas por turno
-      const turnosMap = {"Mañana":0, "Tarde":0};
-      registros.forEach(r=>{
-        turnosMap["Mañana"] += (r.manana||0);
-        turnosMap["Tarde"] += (r.tarde||0);
+      const turnosMap = { 'Mañana': 0, 'Tarde': 0 };
+      rows.forEach(r=>{
+        turnosMap['Mañana'] += (r.manana||0);
+        turnosMap['Tarde'] += (r.tarde||0);
       });
       if(chartTurnos) chartTurnos.destroy();
-      chartTurnos = new Chart(document.getElementById('chartTurnos').getContext('2d'), { type:'bar', data:{ labels:Object.keys(turnosMap), datasets:[{ label:'Ventas por turno (€)', data:Object.values(turnosMap) }] }});
+      chartTurnos = new Chart(document.getElementById('chartTurnos').getContext('2d'), {
+        type: 'bar',
+        data: { labels: Object.keys(turnosMap), datasets: [{ label: 'Ventas por turno (€)', data: Object.values(turnosMap) }] },
+        options: { responsive:true }
+      });
 
       // Balance acumulado
       const balances = [];
       let cum = 0;
       rows.forEach(r=>{ cum += r.balance; balances.push(cum); });
       if(chartLine) chartLine.destroy();
-      chartLine = new Chart(document.getElementById('chartLine').getContext('2d'), { type:'line', data:{ labels:rows.map(r=>r.fecha), datasets:[{ label:'Balance acumulado (€)', data:balances, fill:false, tension:0.2 }] }});
+      chartLine = new Chart(document.getElementById('chartLine').getContext('2d'), {
+        type: 'line',
+        data: { labels: rows.map(r=>r.fecha), datasets: [{ label: 'Balance acumulado (€)', data: balances, fill:false, tension:0.2 }] },
+        options: { responsive:true }
+      });
     }
 
     function getFiltered(){
-      const from = filterFrom.value? new Date(filterFrom.value) : null;
-      const to = filterTo.value? new Date(filterTo.value) : null;
+      const from = filterFrom.value ? new Date(filterFrom.value + 'T00:00:00') : null;
+      const to = filterTo.value ? new Date(filterTo.value + 'T23:59:59') : null;
       return registros.filter(r=>{
         const d = new Date(r.fecha);
         if(from && d < from) return false;
@@ -324,6 +385,9 @@
 
     document.getElementById('btnApplyFilter').addEventListener('click', ()=> renderAll());
     document.getElementById('btnResetFilter').addEventListener('click', ()=>{ filterFrom.value=''; filterTo.value=''; renderAll(); });
+
+    // inicializamos el campo fecha con ahora (local) para mayor comodidad
+    fFecha.value = new Date().toISOString().slice(0,16);
 
   </script>
 </body>
